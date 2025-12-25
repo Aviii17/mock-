@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mock Test Platform + Psychometric Analyzer (PDF → Test)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js" integrity="sha512-6DTlH0iC6RA6I+w4pYQmJm2CEEs0+Z34QxCA2BKqJ1m4yXG8u0Wm+Kc9qgF8Lh8pY4c7gR6a8K3x6v6HhB5Kcg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    :root { color-scheme: light; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .prose-tight p { margin: .25rem 0; }
+    .scrollbar::-webkit-scrollbar { height: 10px; width: 10px; }
+    .scrollbar::-webkit-scrollbar-thumb { background: rgb(203 213 225); border-radius: 9999px; }
+    .scrollbar::-webkit-scrollbar-thumb:hover { background: rgb(148 163 184); }
+    .safe-pre { white-space: pre-wrap; word-break: break-word; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+      .print-card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div class="mx-auto max-w-6xl px-4 py-4 flex items-start md:items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl md:text-2xl font-semibold tracking-tight">Mock Test Platform & Psychometric Analyzer</h1>
+        <p class="text-sm text-slate-600">PDF → Question extraction → Mode selection → Test → Grading → Cognitive analytics</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnReset" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">Reset</button>
+        <button id="btnPrint" class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800">Print report</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-6">
+    <section class="grid gap-4 md:grid-cols-12">
+      <div class="md:col-span-5">
+        <div class="print-card rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div class="border-b border-slate-200 p-4">
+            <h2 class="text-base font-semibold">Phase 1 — Ingestion & Test Generation</h2>
+            <p class="text-sm text-slate-600">Upload the Question PDF (required). Upload Solution PDF (optional) to auto-parse the answer key & solutions.</p>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="text-sm font-medium">Question PDF (Required)</label>
+              <input id="qPdf" type="file" accept="application/pdf" class="mt-1 block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-white hover:file:bg-slate-800" />
+              <p id="qPdfStatus" class="mt-1 text-xs text-slate-600">No file selected.</p>
+            </div>
+            <div>
+              <label class="text-sm font-medium">Solution PDF (Optional)</label>
+              <input id="sPdf" type="file" accept="application/pdf" class="mt-1 block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-white hover:file:bg-slate-800" />
+              <p id="sPdfStatus" class="mt-1 text-xs text-slate-600">No file selected.</p>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-medium">Extraction status</p>
+                <span id="extractBadge" class="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Idle</span>
+              </div>
+              <div class="mt-2">
+                <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div id="extractBar" class="h-full w-0 bg-slate-900 transition-all"></div>
+                </div>
+                <p id="extractNote" class="mt-2 text-xs text-slate-600">Upload PDFs to begin extraction.</p>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex flex-wrap gap-2">
+                <button id="btnExtract" class="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400">Ingest PDFs</button>
+                <button id="btnUseSample" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50">Use built-in sample (no PDF)</button>
+              </div>
+              <p class="text-xs text-slate-600">Tip: If parsing misses question boundaries, you can paste text below and re-parse.</p>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-sm font-medium">Fallback: Paste extracted text (optional)</label>
+                <button id="btnParsePasted" class="text-xs underline text-slate-700 hover:text-slate-900">Parse pasted text</button>
+              </div>
+              <textarea id="pasteBox" class="mt-1 h-28 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs mono" placeholder="Paste raw text here if PDF extraction fails..."></textarea>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
+              <div class="flex items-center justify-between">
+                <p class="text-sm font-medium">Answer key</p>
+                <span id="keyConfidence" class="text-xs text-slate-600">—</span>
+              </div>
+              <p class="mt-1 text-xs text-slate-600">If Solution PDF parsing is imperfect, paste/repair the answer key here. Supported formats: <span class="mono">1 A</span>, <span class="mono">2: C</span>, <span class="mono">3) True</span>.</p>
+              <textarea id="keyBox" class="mt-2 h-24 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs mono" placeholder="Optional: paste answer key mapping here..."></textarea>
+              <div class="mt-2 flex gap-2">
+                <button id="btnApplyKey" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">Apply answer key</button>
+                <button id="btnClearKey" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">Clear key</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="no-print mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div class="border-b border-slate-200 p-4">
+            <h3 class="text-base font-semibold">Mode Selection (Required to Start)</h3>
+            <p class="text-sm text-slate-600">Select Mode: (A) Interactive (one question at a time) or (B) Batch (submit all at once).</p>
+          </div>
+          <div class="p-4">
+            <div class="grid gap-3 md:grid-cols-2">
+              <button id="modeInteractive" class="rounded-xl border border-slate-200 bg-white p-4 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                <div class="flex items-center justify-between">
+                  <p class="font-semibold">(A) Interactive</p>
+                  <span class="text-xs rounded-full bg-slate-100 px-2 py-0.5">Recommended</span>
+                </div>
+                <p class="mt-1 text-sm text-slate-600">Answer one question at a time with navigation and per-question timing.</p>
+              </button>
+              <button id="modeBatch" class="rounded-xl border border-slate-200 bg-white p-4 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                <p class="font-semibold">(B) Batch</p>
+                <p class="mt-1 text-sm text-slate-600">Answer all questions in a single scroll and submit once.</p>
+              </button>
+            </div>
+            <div class="mt-4 flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium">Ready status</p>
+                <p id="readyNote" class="text-xs text-slate-600">Upload/ingest a Question PDF to enable modes.</p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-slate-600">Questions detected</p>
+                <p id="qCount" class="text-lg font-semibold">0</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="md:col-span-7">
+        <div class="print-card rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div class="border-b border-slate-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h2 class="text-base font-semibold">Test Console</h2>
+              <p id="consoleSub" class="text-sm text-slate-600">Ingest PDFs → Choose mode → Begin</p>
+            </div>
+            <div class="no-print flex items-center gap-2">
+              <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p class="text-xs text-slate-600">Timer</p>
+                <p id="timer" class="mono text-sm font-semibold">00:00</p>
+              </div>
+              <button id="btnStart" class="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400">Start test</button>
+              <button id="btnSubmit" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">Submit</button>
+            </div>
+          </div>
+
+          <div id="testArea" class="p-4">
+            <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6">
+              <p class="font-semibold">No active test</p>
+              <p class="mt-1 text-sm text-slate-600">Upload/ingest your PDFs and select a mode to begin.</p>
+              <ul class="mt-3 list-disc pl-5 text-sm text-slate-600">
+                <li>Questions are generated only from the uploaded Question PDF (or the pasted text fallback).</li>
+                <li>Answer key can be auto-parsed from Solution PDF or manually pasted.</li>
+                <li>Report includes scoring, psychometric bias detection, and remediation per wrong/unattempted item.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div id="reportCard" class="print-card mt-4 hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div class="border-b border-slate-200 p-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-base font-semibold">Analytical Report</h2>
+              <p class="text-sm text-slate-600">Generated after submission (matches requested format).</p>
+            </div>
+            <div class="no-print flex gap-2">
+              <button id="btnCopyMarkdown" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">Copy report (Markdown)</button>
+              <button id="btnDownloadJSON" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">Download JSON</button>
+            </div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-sm font-medium">Markdown (for easy sharing)</p>
+              <textarea id="mdOut" class="mt-2 h-56 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs mono"></textarea>
+            </div>
+            <div>
+              <p class="text-sm font-medium">Formatted view</p>
+              <div id="reportOut" class="mt-2 rounded-xl border border-slate-200 bg-white p-4"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <footer class="no-print mt-8 text-xs text-slate-500">
+      <p><span class="font-medium">Privacy:</span> All processing runs locally in your browser. PDFs are not uploaded anywhere by this page.</p>
+      <p class="mt-1">If your Solution PDF includes full explanations, the app will try to extract them; otherwise it will show a placeholder remediation note.</p>
+    </footer>
+  </main>
+
+  <template id="tplQuestionInteractive">
+    <div class="space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="text-xs text-slate-600">Question <span data-q-idx></span> / <span data-q-total></span></p>
+          <h3 class="mt-1 text-base font-semibold" data-q-title></h3>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+          <p class="text-xs text-slate-600">Time on this question</p>
+          <p class="mono text-sm font-semibold" data-q-time>00:00</p>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="safe-pre text-sm leading-relaxed" data-q-text></div>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p class="text-sm font-medium">Your Answer</p>
+        <div data-q-answer-area class="mt-3"></div>
+        <p class="mt-2 text-xs text-slate-600">Leave blank to mark unattempted.</p>
+      </div>
+
+      <div class="no-print flex flex-wrap items-center justify-between gap-2">
+        <div class="flex gap-2">
+          <button data-btn-prev class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50">Prev</button>
+          <button data-btn-next class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50">Next</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button data-btn-clear class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50">Clear answer</button>
+          <button data-btn-jump class="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800">Jump to…</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tplQuestionBatch">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="text-xs text-slate-600">Q<span data-qno></span></p>
+          <p class="mt-1 font-semibold" data-title></p>
+        </div>
+        <span class="text-xs rounded-full bg-slate-100 px-2 py-0.5" data-typebadge></span>
+      </div>
+      <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div class="safe-pre text-sm" data-text></div>
+      </div>
+      <div class="mt-3">
+        <p class="text-sm font-medium">Your Answer</p>
+        <div class="mt-2" data-answer-area></div>
+      </div>
+    </div>
+  </template>
+
+  <dialog id="jumpDlg" class="rounded-2xl border border-slate-200 bg-white p-0 shadow-xl w-[min(560px,95vw)]">
+    <form method="dialog" class="p-4 border-b border-slate-200">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="font-semibold">Jump to question</p>
+          <p class="text-sm text-slate-600">Enter a question number between 1 and <span id="jumpMax">0</span>.</p>
+        </div>
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">Close</button>
+      </div>
+    </form>
+    <div class="p-4">
+      <div class="flex gap-2">
+        <input id="jumpInput" type="number" min="1" class="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm" placeholder="e.g., 12" />
+        <button id="jumpGo" class="rounded-xl bg-slate-900 px-4 py-3 text-sm text-white hover:bg-slate-800">Go</button>
+      </div>
+      <p id="jumpErr" class="mt-2 text-sm text-rose-700"></p>
+    </div>
+  </dialog>
+
+  <script>
+    // -------------------------
+    // Utilities
+    // -------------------------
+    const $ = (sel, el=document) => el.querySelector(sel);
+    const $$ = (sel, el=document) => [...el.querySelectorAll(sel)];
+
+    function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function fmtTime(ms) {
+      const s = Math.max(0, Math.round(ms/1000));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${pad2(m)}:${pad2(r)}`;
+    }
+
+    function normalizeAns(s) {
+      if (s == null) return '';
+      return String(s)
+        .trim()
+        .replace(/^\((.)\)$/,'$1')
+        .replace(/^option\s+/i,'')
+        .replace(/\s+/g,' ')
+        .toUpperCase();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    }
+
+    function download(filename, text, mime='application/json') {
+      const blob = new Blob([text], {type: mime});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // -------------------------
+    // State
+    // -------------------------
+    const state = {
+      questionPdfName: null,
+      solutionPdfName: null,
+      questionTextRaw: '',
+      solutionTextRaw: '',
+      questions: [],
+      answerKey: new Map(), // qNo (1-based) -> normalized answer
+      solutions: new Map(), // qNo -> solution/explanation (best-effort)
+      mode: null, // 'interactive' | 'batch'
+      startedAt: null,
+      timerId: null,
+      totalElapsedMs: 0,
+      perQuestionMs: [],
+      currentIdx: 0,
+      answers: new Map(), // qNo -> raw user answer
+      report: null,
+    };
+
+    // -------------------------
+    // PDF.js setup
+    // -------------------------
+    if (window.pdfjsLib) {
+      // Worker src for pdf.js
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+    }
+
+    async function extractPdfText(file, progressCb) {
+      if (!window.pdfjsLib) throw new Error('pdf.js not available');
+      const buf = await file.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: buf });
+      const pdf = await loadingTask.promise;
+      const maxPages = pdf.numPages;
+      let out = [];
+
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const tc = await page.getTextContent();
+        // Join text items keeping approximate line breaks.
+        // We'll insert newlines when Y changes significantly.
+        let lastY = null;
+        let pageText = '';
+        for (const item of tc.items) {
+          const str = item.str ?? '';
+          const y = item.transform?.[5];
+          if (lastY != null && y != null && Math.abs(y - lastY) > 8) pageText += '\n';
+          pageText += (str + ' ');
+          if (y != null) lastY = y;
+        }
+        out.push(pageText.trim());
+        progressCb?.(pageNum / maxPages);
+      }
+
+      return out.join('\n\n');
+    }
+
+    // -------------------------
+    // Parsing logic (questions, options, answer key)
+    // -------------------------
+    function parseQuestionsFromText(raw) {
+      const text = (raw || '').replace(/\r/g,'').trim();
+      if (!text) return [];
+
+      // Attempt to split by leading numeric markers: "1." "1)" "1 -" etc.
+      // Use multiline regex to find markers.
+      const markerRe = /(^|\n)\s*(\d{1,4})\s*(?:[\.|\)|\-|:])\s+/g;
+      const markers = [];
+      let m;
+      while ((m = markerRe.exec(text)) !== null) {
+        markers.push({ idx: m.index + (m[1] ? m[1].length : 0), qno: Number(m[2]) });
+      }
+
+      let blocks = [];
+      if (markers.length >= 2) {
+        for (let i=0; i<markers.length; i++) {
+          const start = markers[i].idx;
+          const end = (i+1 < markers.length) ? markers[i+1].idx : text.length;
+          const qno = markers[i].qno;
+          const chunk = text.slice(start, end).trim();
+          blocks.push({ qno, chunk });
+        }
+      } else {
+        // Fallback: split by double newlines into pseudo-questions.
+        const parts = text.split(/\n\n+/).map(s => s.trim()).filter(Boolean);
+        blocks = parts.map((chunk, i) => ({ qno: i+1, chunk }));
+      }
+
+      // Normalize: ensure qnos sequential in display order (keep original if weird).
+      const questions = blocks.map((b, i) => {
+        const qno = (Number.isFinite(b.qno) && b.qno > 0) ? b.qno : (i+1);
+        const chunk = b.chunk
+          .replace(/^\s*\d{1,4}\s*(?:[\.|\)|\-|:])\s+/, '')
+          .trim();
+
+        // Detect MCQ options A-D
+        const optionRe = /(?:^|\n)\s*(?:\(?([A-Da-d])\)?[\.|\)|:])\s+(.+?)(?=(\n\s*(?:\(?[A-Da-d]\)?[\.|\)|:])\s+)|$)/gs;
+        const options = [];
+        let om;
+        while ((om = optionRe.exec(chunk)) !== null) {
+          options.push({ label: om[1].toUpperCase(), text: om[2].trim() });
+        }
+
+        const stem = options.length ? chunk.split(optionRe)[0].trim() : chunk;
+        const title = stem.split(/\n/)[0].trim().slice(0, 140) || `Question ${qno}`;
+
+        return {
+          qno,
+          title,
+          text: stem.trim(),
+          options,
+          type: options.length ? 'mcq' : 'text',
+          raw: chunk,
+        };
+      });
+
+      // Re-index to display order 1..N (keep original qno as originalQno)
+      return questions.map((q, i) => ({
+        ...q,
+        originalQno: q.qno,
+        qno: i+1,
+      }));
+    }
+
+    function parseAnswerKeyFromText(raw) {
+      const text = (raw || '').replace(/\r/g,'');
+      const map = new Map();
+
+      // Common patterns: "1. A", "1) A", "1 - A", "1: Ans A", "Q1 A"
+      const re = /(?:^|\n)\s*(?:Q\s*)?(\d{1,4})\s*(?:[\.|\)|\-|:])?\s*(?:ANS(?:WER)?\s*[:\-])?\s*(\(?[A-Da-d]\)?|TRUE|FALSE|[0-9]+(?:\.[0-9]+)?|[A-Za-z][A-Za-z0-9\-\+\/=\*\^\(\)\[\]\.]+)\b/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const q = Number(m[1]);
+        const a = normalizeAns(m[2]);
+        if (Number.isFinite(q) && q > 0 && a) {
+          if (!map.has(q)) map.set(q, a);
+        }
+      }
+
+      return map;
+    }
+
+    function parseSolutionsFromText(raw) {
+      const text = (raw || '').replace(/\r/g,'');
+      const sols = new Map();
+      if (!text.trim()) return sols;
+
+      // Best-effort: capture blocks starting with "1." etc.
+      const markerRe = /(^|\n)\s*(\d{1,4})\s*(?:[\.|\)|\-|:])\s+/g;
+      const markers = [];
+      let m;
+      while ((m = markerRe.exec(text)) !== null) {
+        markers.push({ idx: m.index + (m[1] ? m[1].length : 0), qno: Number(m[2]) });
+      }
+      if (markers.length < 2) return sols;
+
+      for (let i=0; i<markers.length; i++) {
+        const start = markers[i].idx;
+        const end = (i+1 < markers.length) ? markers[i+1].idx : text.length;
+        const qno = markers[i].qno;
+        const chunk = text.slice(start, end).trim();
+        // Remove the leading qno marker
+        const cleaned = chunk.replace(/^\s*\d{1,4}\s*(?:[\.|\)|\-|:])\s+/, '').trim();
+        if (cleaned && !sols.has(qno)) sols.set(qno, cleaned);
+      }
+      return sols;
+    }
+
+    // -------------------------
+    // Difficulty / avoidable heuristics (best-effort)
+    // -------------------------
+    const stop = new Set('the a an and or but if then else of in on at to for from by with without into within over under between among is are was were be been being do does did done can could would should may might must will shall this that these those which who whom whose what when where why how not only also than as'.split(/\s+/));
+
+    function rarityScore(text) {
+      const tokens = (text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g,' ')
+        .split(/\s+/)
+        .filter(Boolean);
+      if (!tokens.length) return 0;
+
+      // Heuristic: longer words & mixed alphanumerics increase rarity.
+      let score = 0;
+      let count = 0;
+      for (const t of tokens) {
+        if (stop.has(t)) continue;
+        count++;
+        const long = Math.max(0, t.length - 6) / 6; // >6 letters
+        const hasDigits = /\d/.test(t) ? 0.6 : 0;
+        const hasWeird = /[\-\+\/=\*\^]/.test(t) ? 0.6 : 0;
+        score += long + hasDigits + hasWeird;
+      }
+      if (!count) return 0;
+      return score / count;
+    }
+
+    function classifyAvoidable(question) {
+      // Goal: classify mistakes as "Avoidable (standard)" vs "Unavoidable (obscure)".
+      // We approximate using rarity + factual markers.
+      const t = (question?.raw || question?.text || '');
+      const rare = rarityScore(t);
+      const factual = /(year|who|when|which of the following|according to|statement|true|false|not|except|author|book|act\b|section\b|article\b|constitution|dates?\b|capital|invented|discovered)/i.test(t);
+      const veryLong = t.length > 750;
+
+      // If extremely rare or very long with technical tokens → unavoidable.
+      const unavoidable = (rare > 0.85) || (rare > 0.65 && (veryLong || factual));
+      return {
+        label: unavoidable ? 'Unavoidable' : 'Avoidable',
+        sourceCheck: unavoidable ? 'Non-Standard Source (Obscure/Highly Difficult — heuristic)' : 'Standard Source (Basic/Typical — heuristic)',
+        rare,
+      };
+    }
+
+    // -------------------------
+    // UI binding
+    // -------------------------
+    const els = {
+      qPdf: $('#qPdf'),
+      sPdf: $('#sPdf'),
+      qPdfStatus: $('#qPdfStatus'),
+      sPdfStatus: $('#sPdfStatus'),
+      btnExtract: $('#btnExtract'),
+      btnUseSample: $('#btnUseSample'),
+      btnParsePasted: $('#btnParsePasted'),
+      pasteBox: $('#pasteBox'),
+      extractBadge: $('#extractBadge'),
+      extractBar: $('#extractBar'),
+      extractNote: $('#extractNote'),
+      qCount: $('#qCount'),
+      readyNote: $('#readyNote'),
+      modeInteractive: $('#modeInteractive'),
+      modeBatch: $('#modeBatch'),
+      btnStart: $('#btnStart'),
+      btnSubmit: $('#btnSubmit'),
+      timer: $('#timer'),
+      testArea: $('#testArea'),
+      consoleSub: $('#consoleSub'),
+      keyBox: $('#keyBox'),
+      btnApplyKey: $('#btnApplyKey'),
+      btnClearKey: $('#btnClearKey'),
+      keyConfidence: $('#keyConfidence'),
+      reportCard: $('#reportCard'),
+      mdOut: $('#mdOut'),
+      reportOut: $('#reportOut'),
+      btnCopyMarkdown: $('#btnCopyMarkdown'),
+      btnDownloadJSON: $('#btnDownloadJSON'),
+      btnReset: $('#btnReset'),
+      btnPrint: $('#btnPrint'),
+      jumpDlg: $('#jumpDlg'),
+      jumpMax: $('#jumpMax'),
+      jumpInput: $('#jumpInput'),
+      jumpGo: $('#jumpGo'),
+      jumpErr: $('#jumpErr'),
+    };
+
+    function setExtractUI(status, progress=0, note='') {
+      const badgeMap = {
+        idle: ['Idle','bg-slate-200 text-slate-700'],
+        working: ['Working','bg-amber-100 text-amber-800'],
+        done: ['Done','bg-emerald-100 text-emerald-800'],
+        error: ['Error','bg-rose-100 text-rose-800'],
+      };
+      const [label, cls] = badgeMap[status] || badgeMap.idle;
+      els.extractBadge.textContent = label;
+      els.extractBadge.className = `rounded-full px-2 py-0.5 text-xs ${cls}`;
+      els.extractBar.style.width = `${Math.round(clamp(progress,0,1)*100)}%`;
+      els.extractNote.textContent = note || '';
+    }
+
+    function setReadyUI() {
+      const ready = state.questions.length > 0;
+      els.qCount.textContent = String(state.questions.length);
+      els.modeInteractive.disabled = !ready;
+      els.modeBatch.disabled = !ready;
+      els.btnStart.disabled = !(ready && state.mode);
+      els.btnSubmit.disabled = !(ready && state.startedAt);
+      els.readyNote.textContent = ready ? 'Questions loaded. Now select a mode.' : 'Upload/ingest a Question PDF to enable modes.';
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      els.modeInteractive.classList.toggle('ring-2', mode==='interactive');
+      els.modeInteractive.classList.toggle('ring-slate-900', mode==='interactive');
+      els.modeBatch.classList.toggle('ring-2', mode==='batch');
+      els.modeBatch.classList.toggle('ring-slate-900', mode==='batch');
+      els.consoleSub.textContent = mode ? `Mode selected: ${mode === 'interactive' ? '(A) Interactive' : '(B) Batch'} — click Start test` : 'Ingest PDFs → Choose mode → Begin';
+      setReadyUI();
+    }
+
+    function ensureTimerRunning() {
+      if (state.timerId) return;
+      state.timerId = setInterval(() => {
+        if (!state.startedAt) return;
+        const now = performance.now();
+        const elapsed = now - state.startedAt;
+        state.totalElapsedMs = elapsed;
+        els.timer.textContent = fmtTime(elapsed);
+
+        // Per question timer for interactive
+        if (state.mode === 'interactive') {
+          const idx = state.currentIdx;
+          const base = state.perQuestionMs[idx]?.baseStart ?? now;
+          state.perQuestionMs[idx] = state.perQuestionMs[idx] || {};
+          const qElapsed = (state.perQuestionMs[idx].accumulated || 0) + (now - base);
+          const qTimeEl = $('[data-q-time]');
+          if (qTimeEl) qTimeEl.textContent = fmtTime(qElapsed);
+        }
+      }, 250);
+    }
+
+    function stopTimer() {
+      if (state.timerId) clearInterval(state.timerId);
+      state.timerId = null;
+    }
+
+    function resetAll() {
+      stopTimer();
+      state.questionPdfName = null;
+      state.solutionPdfName = null;
+      state.questionTextRaw = '';
+      state.solutionTextRaw = '';
+      state.questions = [];
+      state.answerKey = new Map();
+      state.solutions = new Map();
+      state.mode = null;
+      state.startedAt = null;
+      state.totalElapsedMs = 0;
+      state.perQuestionMs = [];
+      state.currentIdx = 0;
+      state.answers = new Map();
+      state.report = null;
+
+      els.qPdf.value = '';
+      els.sPdf.value = '';
+      els.qPdfStatus.textContent = 'No file selected.';
+      els.sPdfStatus.textContent = 'No file selected.';
+      els.pasteBox.value = '';
+      els.keyBox.value = '';
+      els.keyConfidence.textContent = '—';
+
+      setExtractUI('idle', 0, 'Upload PDFs to begin extraction.');
+      els.timer.textContent = '00:00';
+      setMode(null);
+
+      els.testArea.innerHTML = `<div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6">
+        <p class="font-semibold">No active test</p>
+        <p class="mt-1 text-sm text-slate-600">Upload/ingest your PDFs and select a mode to begin.</p>
+      </div>`;
+      els.reportCard.classList.add('hidden');
+      els.mdOut.value = '';
+      els.reportOut.innerHTML = '';
+      setReadyUI();
+    }
+
+    // -------------------------
+    // Rendering: answer input
+    // -------------------------
+    function renderAnswerInput(question, qno, container) {
+      container.innerHTML = '';
+      const existing = state.answers.get(qno) ?? '';
+
+      if (question.type === 'mcq') {
+        const group = document.createElement('div');
+        group.className = 'grid gap-2';
+
+        for (const opt of question.options) {
+          const id = `q${qno}_${opt.label}`;
+          const wrap = document.createElement('label');
+          wrap.className = 'flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50 cursor-pointer';
+
+          const radio = document.createElement('input');
+          radio.type = 'radio';
+          radio.name = `q${qno}`;
+          radio.value = opt.label;
+          radio.id = id;
+          radio.className = 'mt-1';
+          radio.checked = normalizeAns(existing) === opt.label;
+
+          radio.addEventListener('change', () => {
+            state.answers.set(qno, opt.label);
+          });
+
+          const txt = document.createElement('div');
+          txt.className = 'text-sm';
+          txt.innerHTML = `<div class="font-semibold">${opt.label}</div><div class="text-slate-700 safe-pre">${escapeHtml(opt.text)}</div>`;
+
+          wrap.appendChild(radio);
+          wrap.appendChild(txt);
+          group.appendChild(wrap);
+        }
+
+        // Add an "Other" text input for rare cases
+        const other = document.createElement('div');
+        other.className = 'mt-3';
+        other.innerHTML = `
+          <label class="text-xs text-slate-600">If answer is not A–D, type it here:</label>
+          <input class="mt-1 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm" placeholder="e.g., True / 42 / Short phrase" />
+        `;
+        const otherInput = other.querySelector('input');
+        otherInput.value = (existing && !['A','B','C','D'].includes(normalizeAns(existing))) ? existing : '';
+        otherInput.addEventListener('input', () => {
+          const v = otherInput.value.trim();
+          if (v) {
+            // clear radios
+            $$(`input[name="q${qno}"]`, container).forEach(r => r.checked = false);
+            state.answers.set(qno, v);
+          } else {
+            const current = state.answers.get(qno);
+            if (current && !['A','B','C','D'].includes(normalizeAns(current))) state.answers.delete(qno);
+          }
+        });
+
+        container.appendChild(group);
+        container.appendChild(other);
+        return;
+      }
+
+      const ta = document.createElement('textarea');
+      ta.className = 'h-28 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm mono';
+      ta.placeholder = 'Type your answer here...';
+      ta.value = existing;
+      ta.addEventListener('input', () => {
+        const v = ta.value.trim();
+        if (v) state.answers.set(qno, v);
+        else state.answers.delete(qno);
+      });
+      container.appendChild(ta);
+    }
+
+    // -------------------------
+    // Rendering: Interactive
+    // -------------------------
+    function markQuestionSwitch(fromIdx, toIdx) {
+      if (fromIdx == null || fromIdx === toIdx) return;
+      const now = performance.now();
+      // stop timing fromIdx
+      if (state.perQuestionMs[fromIdx]) {
+        const base = state.perQuestionMs[fromIdx].baseStart;
+        if (base) {
+          state.perQuestionMs[fromIdx].accumulated = (state.perQuestionMs[fromIdx].accumulated || 0) + (now - base);
+          state.perQuestionMs[fromIdx].baseStart = null;
+        }
+      }
+      // start timing toIdx
+      state.perQuestionMs[toIdx] = state.perQuestionMs[toIdx] || {};
+      state.perQuestionMs[toIdx].baseStart = now;
+    }
+
+    function renderInteractive(idx) {
+      idx = clamp(idx, 0, state.questions.length - 1);
+      const q = state.questions[idx];
+      state.currentIdx = idx;
+
+      const tpl = $('#tplQuestionInteractive');
+      const node = tpl.content.cloneNode(true);
+      $('[data-q-idx]', node).textContent = String(idx + 1);
+      $('[data-q-total]', node).textContent = String(state.questions.length);
+      $('[data-q-title]', node).textContent = q.title;
+      $('[data-q-text]', node).textContent = q.raw;
+
+      const answerArea = $('[data-q-answer-area]', node);
+      renderAnswerInput(q, q.qno, answerArea);
+
+      const btnPrev = $('[data-btn-prev]', node);
+      const btnNext = $('[data-btn-next]', node);
+      btnPrev.disabled = idx === 0;
+      btnNext.disabled = idx === state.questions.length - 1;
+
+      btnPrev.addEventListener('click', () => {
+        markQuestionSwitch(state.currentIdx, state.currentIdx - 1);
+        renderInteractive(state.currentIdx - 1);
+      });
+      btnNext.addEventListener('click', () => {
+        markQuestionSwitch(state.currentIdx, state.currentIdx + 1);
+        renderInteractive(state.currentIdx + 1);
+      });
+
+      $('[data-btn-clear]', node).addEventListener('click', () => {
+        state.answers.delete(q.qno);
+        renderInteractive(state.currentIdx);
+      });
+
+      $('[data-btn-jump]', node).addEventListener('click', () => {
+        els.jumpMax.textContent = String(state.questions.length);
+        els.jumpErr.textContent = '';
+        els.jumpInput.value = String(state.currentIdx + 1);
+        els.jumpDlg.showModal();
+        setTimeout(() => els.jumpInput.focus(), 50);
+      });
+
+      els.testArea.innerHTML = '';
+      els.testArea.appendChild(node);
+
+      // Ensure timing on current idx
+      state.perQuestionMs[idx] = state.perQuestionMs[idx] || {};
+      if (!state.perQuestionMs[idx].baseStart) state.perQuestionMs[idx].baseStart = performance.now();
+    }
+
+    // -------------------------
+    // Rendering: Batch
+    // -------------------------
+    function renderBatch() {
+      const wrap = document.createElement('div');
+      wrap.className = 'space-y-3';
+
+      for (const q of state.questions) {
+        const tpl = $('#tplQuestionBatch');
+        const node = tpl.content.cloneNode(true);
+        $('[data-qno]', node).textContent = String(q.qno);
+        $('[data-title]', node).textContent = q.title;
+        $('[data-text]', node).textContent = q.raw;
+        const badge = $('[data-typebadge]', node);
+        badge.textContent = q.type === 'mcq' ? 'MCQ' : 'Text';
+
+        const area = $('[data-answer-area]', node);
+        renderAnswerInput(q, q.qno, area);
+
+        wrap.appendChild(node);
+      }
+
+      const hint = document.createElement('div');
+      hint.className = 'rounded-xl border border-slate-200 bg-slate-50 p-4';
+      hint.innerHTML = `
+        <p class="text-sm font-medium">Batch mode tips</p>
+        <ul class="mt-2 list-disc pl-5 text-sm text-slate-600">
+          <li>Use browser search (Ctrl/Cmd+F) to quickly locate question numbers.</li>
+          <li>Leave blank to mark unattempted.</li>
+        </ul>
+      `;
+      wrap.prepend(hint);
+
+      els.testArea.innerHTML = '';
+      els.testArea.appendChild(wrap);
+    }
+
+    // -------------------------
+    // Report generation (exact requested format)
+    // -------------------------
+    function buildAccuracyBar(pct) {
+      const blocks = 10;
+      const filled = clamp(Math.round((pct/100)*blocks), 0, blocks);
+      return `${'█'.repeat(filled)}${'░'.repeat(blocks - filled)} ${Math.round(pct)}%`;
+    }
+
+    function grade() {
+      const total = state.questions.length;
+      let attempted = 0, unattempted = 0;
+      let correct = 0, incorrect = 0;
+
+      const perQ = [];
+
+      for (const q of state.questions) {
+        const userRaw = state.answers.get(q.qno);
+        const user = (userRaw == null) ? '' : String(userRaw).trim();
+        const attemptedThis = user.length > 0;
+        attemptedThis ? attempted++ : unattempted++;
+
+        const keyAns = state.answerKey.get(q.qno); // already mapped to display qno if we reindexed
+        const hasKey = !!keyAns;
+        const userNorm = normalizeAns(user);
+
+        let isCorrect = null;
+        if (attemptedThis && hasKey) {
+          isCorrect = (userNorm === normalizeAns(keyAns));
+          if (isCorrect) correct++; else incorrect++;
+        } else if (attemptedThis && !hasKey) {
+          // cannot grade
+          isCorrect = null;
+        }
+
+        perQ.push({
+          qno: q.qno,
+          question: q,
+          userAnswer: user,
+          correctAnswer: hasKey ? keyAns : null,
+          graded: hasKey && attemptedThis,
+          isCorrect,
+        });
+      }
+
+      const gradedCount = correct + incorrect;
+      const accuracy = gradedCount ? (correct / gradedCount) * 100 : 0;
+      const score = (correct * 1) + (incorrect * -0.25);
+
+      // Bias detection requires avoidable/unavoidable classification for wrong/unattempted
+      const avoidableWrong = [], unavoidableWrong = [];
+      const avoidableUnattempted = [], unavoidableUnattempted = [];
+
+      // time management: quick wins vs time traps
+      const quickWins = []; // likely avoidable + fast + correct OR unattempted
+      const timeTraps = []; // spent long, wrong or unavoidable
+
+      for (let i=0; i<perQ.length; i++) {
+        const item = perQ[i];
+        const cls = classifyAvoidable(item.question);
+        const ms = state.perQuestionMs[i]?.accumulated || 0;
+
+        const attemptedThis = (item.userAnswer || '').trim().length > 0;
+
+        if (!attemptedThis) {
+          if (cls.label === 'Avoidable') avoidableUnattempted.push(item.qno);
+          else unavoidableUnattempted.push(item.qno);
+        } else {
+          if (item.graded && item.isCorrect === false) {
+            if (cls.label === 'Avoidable') avoidableWrong.push(item.qno);
+            else unavoidableWrong.push(item.qno);
+          }
+        }
+
+        // Quick wins and time traps (heuristic)
+        const isQuick = ms > 0 && ms <= 60_000;
+        const isTrap = ms >= 150_000;
+        const wasWrong = item.graded && item.isCorrect === false;
+        const wasCorrect = item.graded && item.isCorrect === true;
+
+        if (isQuick && (wasCorrect || (!attemptedThis && cls.label === 'Avoidable'))) {
+          quickWins.push({ qno: item.qno, timeMs: ms, note: wasCorrect ? 'Fast + correct' : 'Skipped easy' });
+        }
+        if (isTrap && (wasWrong || cls.label === 'Unavoidable')) {
+          timeTraps.push({ qno: item.qno, timeMs: ms, note: wasWrong ? 'Slow + wrong' : 'Slow + hard' });
+        }
+      }
+
+      let pattern = 'Balanced';
+      const negScore = avoidableUnattempted.length;
+      const posScore = unavoidableWrong.length;
+      if (negScore >= posScore + 2 && negScore > 0) pattern = 'Negative Bias/Risk Averse';
+      else if (posScore >= negScore + 2 && posScore > 0) pattern = 'Positive Bias/Aggressive';
+
+      const analysis = pattern === 'Balanced'
+        ? 'Attempt/skip behavior appears proportionate to difficulty signals (heuristic).'
+        : (pattern.startsWith('Negative')
+          ? `You skipped ${avoidableUnattempted.length} question(s) flagged as standard/avoidable (heuristic), indicating under-confidence.`
+          : `You attempted ${unavoidableWrong.length} question(s) flagged as obscure/unavoidable (heuristic) and got them wrong, indicating overconfidence.`
+        );
+
+      // Build solutions/remediation for every Wrong and Unattempted
+      const remediationItems = [];
+      for (const item of perQ) {
+        const attemptedThis = (item.userAnswer || '').trim().length > 0;
+        const needs = (!attemptedThis) || (item.graded && item.isCorrect === false);
+        if (!needs) continue;
+
+        const cls = classifyAvoidable(item.question);
+        const solText = state.solutions.get(item.qno) || null;
+
+        remediationItems.push({
+          qno: item.qno,
+          qText: item.question.raw,
+          yourAnswer: attemptedThis ? item.userAnswer : '(Unattempted)',
+          correctAnswer: item.correctAnswer ?? '(No answer key provided)',
+          solution: solText || (item.correctAnswer ? 'Solution PDF did not provide a cleanly extractable explanation. Please upload a more explicit Solution PDF or paste the explanation text.' : 'No Solution/Answer Key available; cannot provide authoritative solution within this offline tool.'),
+          sourceCheck: cls.sourceCheck,
+          classification: cls.label,
+        });
+      }
+
+      // Markdown report EXACT requested format
+      const md = [];
+      md.push('### 1. 📊 Performance Scoreboard');
+      md.push('| Metric | Value |');
+      md.push('| :--- | :--- |');
+      md.push(`| **Total Questions** | ${total} |`);
+      md.push(`| **Attempted** | ${attempted} |`);
+      md.push(`| **Unattempted** | ${unattempted} |`);
+      md.push(`| **Correct** | ${correct} |`);
+      md.push(`| **Incorrect** | ${incorrect} |`);
+      md.push(`| **Accuracy** | ${buildAccuracyBar(accuracy)} |`);
+      md.push(`| **FINAL SCORE** | **${score.toFixed(2)}** (Use +1 for Correct, -0.25 for Incorrect) |`);
+
+      md.push('\n### 2. 🧠 Psychometric Pattern Recognition');
+      md.push(`* **Detected Pattern:** ${pattern}`);
+      md.push(`* **Analysis:** ${analysis}`);
+      const qwStr = quickWins.length ? quickWins.slice(0, 12).map(x => `Q${x.qno} (${fmtTime(x.timeMs)}; ${x.note})`).join(', ') : '—';
+      const ttStr = timeTraps.length ? timeTraps.slice(0, 12).map(x => `Q${x.qno} (${fmtTime(x.timeMs)}; ${x.note})`).join(', ') : '—';
+      md.push(`* **Time Management:** Quick Wins → ${qwStr} | Time Traps → ${ttStr}`);
+
+      md.push('\n### 3. 🚨 Error Analysis: Avoidable vs. Unavoidable');
+      md.push(`* **⚠️ Avoidable Mistakes (Silly Errors):**`);
+      md.push(`    * ${avoidableWrong.length ? avoidableWrong.join(', ') : '—'}. *Reason: These are standard concepts found in basic resources.*`);
+      md.push(`* **🛑 Unavoidable Mistakes (Knowledge Gaps):**`);
+      md.push(`    * ${unavoidableWrong.length ? unavoidableWrong.join(', ') : '—'}. *Reason: These were obscure or highly difficult.*`);
+
+      md.push('\n### 4. 📝 Solutions & Remediation');
+      md.push('*For every Wrong and Unattempted question:*');
+      for (const it of remediationItems) {
+        md.push(`\n> **Q${it.qno}:** ${it.qText.replace(/\n/g,' ')}\n> **Your Answer:** ${it.yourAnswer} ${it.yourAnswer === '(Unattempted)' ? '❌' : '❌'} | **Correct Answer:** ${it.correctAnswer} ✅\n> **Solution:** ${it.solution.replace(/\n/g,' ')}\n> **Source Check:** ${it.sourceCheck}`);
+      }
+
+      return {
+        totals: { total, attempted, unattempted, correct, incorrect, gradedCount, accuracy, score },
+        bias: { pattern, analysis, avoidableWrong, unavoidableWrong, avoidableUnattempted, unavoidableUnattempted },
+        time: { totalElapsedMs: state.totalElapsedMs, perQuestionMs: state.perQuestionMs.map(x => x?.accumulated || 0), quickWins, timeTraps },
+        remediationItems,
+        markdown: md.join('\n'),
+        perQ,
+      };
+    }
+
+    function renderReport(report) {
+      els.reportCard.classList.remove('hidden');
+      els.mdOut.value = report.markdown;
+
+      // Render formatted view in HTML roughly matching the markdown
+      const t = report.totals;
+      const b = report.bias;
+
+      const accuracyBar = buildAccuracyBar(t.accuracy);
+
+      const rem = report.remediationItems.map(it => {
+        return `
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="font-semibold">Q${it.qno}</p>
+            <p class="mt-1 text-sm text-slate-700 safe-pre">${escapeHtml(it.qText)}</p>
+            <div class="mt-3 grid gap-2 text-sm">
+              <p><span class="font-medium">Your Answer:</span> <span class="mono">${escapeHtml(it.yourAnswer)}</span> <span class="text-rose-700">❌</span></p>
+              <p><span class="font-medium">Correct Answer:</span> <span class="mono">${escapeHtml(String(it.correctAnswer))}</span> <span class="text-emerald-700">✅</span></p>
+              <p><span class="font-medium">Solution:</span> <span class="safe-pre">${escapeHtml(it.solution)}</span></p>
+              <p><span class="font-medium">Source Check:</span> ${escapeHtml(it.sourceCheck)}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      els.reportOut.innerHTML = `
+        <div class="prose-tight">
+          <h3 class="text-lg font-semibold">1. 📊 Performance Scoreboard</h3>
+          <div class="overflow-x-auto scrollbar">
+            <table class="mt-2 w-full border-collapse text-sm">
+              <thead>
+                <tr class="text-left">
+                  <th class="border-b border-slate-200 py-2 pr-2">Metric</th>
+                  <th class="border-b border-slate-200 py-2">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="border-b border-slate-100 py-2 pr-2 font-medium">Total Questions</td><td class="border-b border-slate-100 py-2">${t.total}</td></tr>
+                <tr><td class="border-b border-slate-100 py-2 pr-2 font-medium">Attempted</td><td class="border-b border-slate-100 py-2">${t.attempted}</td></tr>
+                <tr><td class="border-b border-slate-100 py-2 pr-2 font-medium">Unattempted</td><td class="border-b border-slate-100 py-2">${t.unattempted}</td></tr>
+                <tr><td class="border-b border-slate-100 py-2 pr-2 font-medium">Correct</td><td class="border-b border-slate-100 py-2">${t.correct}</td></tr>
+                <tr><td class="border-b border-slate-100 py-2 pr-2 font-medium">Incorrect</td><td class="border-b border-slate-100 py-2">${t.incorrect}</td></tr>
+                <tr><td class="border-b border-slate-100 py-2 pr-2 font-medium">Accuracy</td><td class="border-b border-slate-100 py-2 mono">${escapeHtml(accuracyBar)}</td></tr>
+                <tr><td class="py-2 pr-2 font-medium">FINAL SCORE</td><td class="py-2"><span class="font-semibold">${t.score.toFixed(2)}</span> <span class="text-slate-600">(Use +1 for Correct, -0.25 for Incorrect)</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="mt-6 text-lg font-semibold">2. 🧠 Psychometric Pattern Recognition</h3>
+          <ul class="mt-2 list-disc pl-5 text-sm text-slate-700">
+            <li><span class="font-medium">Detected Pattern:</span> ${escapeHtml(b.pattern)}</li>
+            <li><span class="font-medium">Analysis:</span> ${escapeHtml(b.analysis)}</li>
+            <li><span class="font-medium">Time Management:</span> <span class="text-slate-700">See Quick Wins/Time Traps in Markdown box (copyable).</span></li>
+          </ul>
+
+          <h3 class="mt-6 text-lg font-semibold">3. 🚨 Error Analysis: Avoidable vs. Unavoidable</h3>
+          <div class="mt-2 text-sm text-slate-700">
+            <p><span class="font-medium">⚠️ Avoidable Mistakes (Silly Errors):</span> ${b.avoidableWrong.length ? b.avoidableWrong.join(', ') : '—'} <span class="text-slate-500">(heuristic)</span></p>
+            <p class="mt-1"><span class="font-medium">🛑 Unavoidable Mistakes (Knowledge Gaps):</span> ${b.unavoidableWrong.length ? b.unavoidableWrong.join(', ') : '—'} <span class="text-slate-500">(heuristic)</span></p>
+          </div>
+
+          <h3 class="mt-6 text-lg font-semibold">4. 📝 Solutions & Remediation</h3>
+          <p class="mt-2 text-sm text-slate-600">For every Wrong and Unattempted question:</p>
+          <div class="mt-3 space-y-3">${rem || '<p class="text-sm text-slate-600">No wrong/unattempted items.</p>'}</div>
+        </div>
+      `;
+    }
+
+    // -------------------------
+    // Ingestion workflow
+    // -------------------------
+    function updateFileStatus() {
+      const q = els.qPdf.files?.[0];
+      const s = els.sPdf.files?.[0];
+      els.qPdfStatus.textContent = q ? `Selected: ${q.name} (${Math.round(q.size/1024)} KB)` : 'No file selected.';
+      els.sPdfStatus.textContent = s ? `Selected: ${s.name} (${Math.round(s.size/1024)} KB)` : 'No file selected.';
+    }
+
+    async function ingest() {
+      const qFile = els.qPdf.files?.[0];
+      if (!qFile) {
+        setExtractUI('error', 0, 'Question PDF is required.');
+        return;
+      }
+
+      state.questionPdfName = qFile.name;
+      const sFile = els.sPdf.files?.[0];
+      state.solutionPdfName = sFile ? sFile.name : null;
+
+      try {
+        setExtractUI('working', 0.02, 'Extracting Question PDF text…');
+        state.questionTextRaw = await extractPdfText(qFile, (p) => setExtractUI('working', 0.02 + p*0.55, `Extracting Question PDF text… (${Math.round(p*100)}%)`));
+        els.pasteBox.value = state.questionTextRaw;
+
+        setExtractUI('working', 0.62, 'Parsing questions…');
+        state.questions = parseQuestionsFromText(state.questionTextRaw);
+        state.perQuestionMs = new Array(state.questions.length).fill(null).map(() => ({ accumulated: 0, baseStart: null }));
+        state.answers = new Map();
+
+        // If solution provided: extract and parse key + solutions
+        state.solutionTextRaw = '';
+        state.answerKey = new Map();
+        state.solutions = new Map();
+
+        if (sFile) {
+          setExtractUI('working', 0.70, 'Extracting Solution PDF text…');
+          state.solutionTextRaw = await extractPdfText(sFile, (p) => setExtractUI('working', 0.70 + p*0.25, `Extracting Solution PDF text… (${Math.round(p*100)}%)`));
+
+          setExtractUI('working', 0.96, 'Parsing answer key & solutions…');
+          const rawKey = parseAnswerKeyFromText(state.solutionTextRaw);
+          const rawSols = parseSolutionsFromText(state.solutionTextRaw);
+
+          // Map raw key question numbers to our display order (we reindexed). If raw key refers to original question numbers, align.
+          // Use originalQno matching first; else fall back by order.
+          const byOriginal = new Map(state.questions.map(q => [q.originalQno, q.qno]));
+          const mapped = new Map();
+          for (const [k, v] of rawKey.entries()) {
+            const qno = byOriginal.get(k);
+            if (qno) mapped.set(qno, v);
+          }
+          // If mapping too sparse, try order-based mapping
+          if (mapped.size < Math.min(3, state.questions.length)) {
+            // try to interpret rawKey keys as 1..N in order
+            for (const [k, v] of rawKey.entries()) {
+              if (k >= 1 && k <= state.questions.length) {
+                if (!mapped.has(k)) mapped.set(k, v);
+              }
+            }
+          }
+          state.answerKey = mapped;
+
+          // Solutions similarly map
+          const mappedS = new Map();
+          for (const [k, v] of rawSols.entries()) {
+            const qno = byOriginal.get(k) ?? (k>=1 && k<=state.questions.length ? k : null);
+            if (qno && !mappedS.has(qno)) mappedS.set(qno, v);
+          }
+          state.solutions = mappedS;
+
+          els.keyBox.value = [...state.answerKey.entries()].sort((a,b)=>a[0]-b[0]).map(([q,a])=>`${q} ${a}`).join('\n');
+        }
+
+        // Update key confidence
+        const conf = state.answerKey.size ? `${state.answerKey.size}/${state.questions.length} answers detected` : 'No answers detected';
+        els.keyConfidence.textContent = conf;
+
+        setExtractUI('done', 1, `Done. Detected ${state.questions.length} question(s). ${state.answerKey.size ? `Answer key: ${state.answerKey.size} mapped.` : 'No answer key found (paste manually if available).'} `);
+
+        // Enable modes and prompt selection
+        setMode(null);
+        setReadyUI();
+
+        // If questions exist, focus on mode selection area
+        els.modeInteractive.scrollIntoView({behavior:'smooth', block:'center'});
+      } catch (err) {
+        console.error(err);
+        setExtractUI('error', 0.2, `Extraction failed: ${err.message || err}`);
+      }
+    }
+
+    // -------------------------
+    // Manual parsing from pasted text
+    // -------------------------
+    function parseFromPasted() {
+      const raw = els.pasteBox.value || '';
+      state.questionTextRaw = raw;
+      state.questions = parseQuestionsFromText(raw);
+      state.perQuestionMs = new Array(state.questions.length).fill(null).map(() => ({ accumulated: 0, baseStart: null }));
+      state.answers = new Map();
+      setExtractUI('done', 1, `Parsed pasted text. Detected ${state.questions.length} question(s).`);
+      els.keyConfidence.textContent = state.answerKey.size ? `${state.answerKey.size}/${state.questions.length} answers detected` : 'No answers detected';
+      setMode(null);
+      setReadyUI();
+    }
+
+    // -------------------------
+    // Sample data for demo
+    // -------------------------
+    function useSample() {
+      const sample = `1. Which option is correct?\n(A) Alpha\n(B) Beta\n(C) Gamma\n(D) Delta\n\n2) True/False: The sky is blue.\n(A) True\n(B) False\n\n3 - Short answer: Define inertia.`;
+      els.pasteBox.value = sample;
+      parseFromPasted();
+      // Provide a sample key
+      els.keyBox.value = `1 C\n2 A\n3 (Text)`;
+      applyKeyFromBox();
+    }
+
+    // -------------------------
+    // Apply answer key from keyBox
+    // -------------------------
+    function applyKeyFromBox() {
+      const raw = els.keyBox.value || '';
+      const parsed = parseAnswerKeyFromText('\n' + raw + '\n');
+
+      // If user key uses display qnos, map directly
+      const mapped = new Map();
+      for (const [k, v] of parsed.entries()) {
+        if (k >= 1 && k <= state.questions.length) mapped.set(k, normalizeAns(v));
+      }
+      state.answerKey = mapped;
+      els.keyConfidence.textContent = state.answerKey.size ? `${state.answerKey.size}/${state.questions.length} answers provided` : 'No answers detected';
+    }
+
+    // -------------------------
+    // Start & submit
+    // -------------------------
+    function startTest() {
+      if (!state.questions.length || !state.mode) return;
+      state.startedAt = performance.now();
+      state.totalElapsedMs = 0;
+      els.reportCard.classList.add('hidden');
+      state.report = null;
+
+      // Init per-question timer start for interactive
+      state.perQuestionMs = new Array(state.questions.length).fill(null).map(() => ({ accumulated: 0, baseStart: null }));
+
+      ensureTimerRunning();
+      els.btnSubmit.disabled = false;
+
+      if (state.mode === 'interactive') {
+        state.currentIdx = 0;
+        state.perQuestionMs[0].baseStart = performance.now();
+        renderInteractive(0);
+      } else {
+        renderBatch();
+      }
+
+      els.consoleSub.textContent = `Test running — Mode: ${state.mode === 'interactive' ? '(A) Interactive' : '(B) Batch'} — Submit when ready`;
+    }
+
+    function submitTest() {
+      if (!state.startedAt) return;
+
+      // Stop timers, finalize current question time
+      const now = performance.now();
+      if (state.mode === 'interactive') {
+        const idx = state.currentIdx;
+        if (state.perQuestionMs[idx]?.baseStart) {
+          state.perQuestionMs[idx].accumulated = (state.perQuestionMs[idx].accumulated || 0) + (now - state.perQuestionMs[idx].baseStart);
+          state.perQuestionMs[idx].baseStart = null;
+        }
+      } else {
+        // For batch mode we don't have per-question timing; keep zeros.
+      }
+
+      state.totalElapsedMs = now - state.startedAt;
+      stopTimer();
+
+      // Grade
+      applyKeyFromBox(); // ensure latest edits applied
+      const report = grade();
+      state.report = report;
+      renderReport(report);
+
+      // Update console
+      els.consoleSub.textContent = `Submitted. Score: ${report.totals.score.toFixed(2)} | Accuracy: ${Math.round(report.totals.accuracy)}%`;
+
+      // Scroll to report
+      els.reportCard.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    // -------------------------
+    // Events
+    // -------------------------
+    els.qPdf.addEventListener('change', updateFileStatus);
+    els.sPdf.addEventListener('change', updateFileStatus);
+
+    els.btnExtract.addEventListener('click', ingest);
+    els.btnParsePasted.addEventListener('click', (e) => { e.preventDefault(); parseFromPasted(); });
+    els.btnUseSample.addEventListener('click', useSample);
+
+    els.modeInteractive.addEventListener('click', () => setMode('interactive'));
+    els.modeBatch.addEventListener('click', () => setMode('batch'));
+
+    els.btnStart.addEventListener('click', startTest);
+    els.btnSubmit.addEventListener('click', submitTest);
+
+    els.btnApplyKey.addEventListener('click', applyKeyFromBox);
+    els.btnClearKey.addEventListener('click', () => { els.keyBox.value = ''; state.answerKey = new Map(); els.keyConfidence.textContent = 'No answers detected'; });
+
+    els.btnCopyMarkdown.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(els.mdOut.value || '');
+        els.btnCopyMarkdown.textContent = 'Copied';
+        setTimeout(() => els.btnCopyMarkdown.textContent = 'Copy report (Markdown)', 900);
+      } catch {
+        // Fallback: select
+        els.mdOut.focus();
+        els.mdOut.select();
+      }
+    });
+
+    els.btnDownloadJSON.addEventListener('click', () => {
+      const payload = {
+        meta: {
+          questionPdfName: state.questionPdfName,
+          solutionPdfName: state.solutionPdfName,
+          mode: state.mode,
+          generatedAt: new Date().toISOString(),
+        },
+        questions: state.questions,
+        answers: Object.fromEntries([...state.answers.entries()]),
+        answerKey: Object.fromEntries([...state.answerKey.entries()]),
+        report: state.report,
+      };
+      download('mock-test-report.json', JSON.stringify(payload, null, 2));
+    });
+
+    els.btnReset.addEventListener('click', resetAll);
+    els.btnPrint.addEventListener('click', () => window.print());
+
+    els.jumpGo.addEventListener('click', (e) => {
+      e.preventDefault();
+      const n = Number(els.jumpInput.value);
+      const max = state.questions.length;
+      if (!Number.isFinite(n) || n < 1 || n > max) {
+        els.jumpErr.textContent = `Enter a valid number (1–${max}).`;
+        return;
+      }
+      els.jumpErr.textContent = '';
+      els.jumpDlg.close();
+      markQuestionSwitch(state.currentIdx, n-1);
+      renderInteractive(n-1);
+    });
+
+    // Init
+    updateFileStatus();
+    resetAll();
+
+    // Auto-enable extract button based on file selection
+    const obs = new MutationObserver(() => {
+      const hasQ = !!els.qPdf.files?.[0];
+      els.btnExtract.disabled = !hasQ;
+    });
+    obs.observe(els.qPdf, { attributes: true, childList: true, subtree: true });
+    els.qPdf.addEventListener('change', () => { els.btnExtract.disabled = !els.qPdf.files?.[0]; });
+
+    // Enable extract now if already selected by browser
+    els.btnExtract.disabled = !els.qPdf.files?.[0];
+    setReadyUI();
+  </script>
+</body>
+</html>
